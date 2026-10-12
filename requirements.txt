@@ -1,0 +1,7 @@
+fastapi
+numpy
+openpyxl
+pandas
+python-multipart
+uvicorn
+xlsxwriter

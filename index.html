@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Genera un reporte de flujo de inventario a partir de un archivo Excel."
+    >
+    <title>Flujo de inventario</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", Arial, sans-serif;
+        color: #17324d;
+        background: #f1f5f8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        display: grid;
+        min-height: 100vh;
+        margin: 0;
+        padding: 32px 16px;
+        place-items: center;
+      }
+
+      main {
+        width: min(100%, 560px);
+        padding: 40px;
+        border: 1px solid #dce5ec;
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 18px 48px rgb(23 50 77 / 9%);
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: #167d78;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.7rem, 5vw, 2.2rem);
+        line-height: 1.15;
+      }
+
+      .intro {
+        margin: 14px 0 28px;
+        color: #5b6c7b;
+        line-height: 1.6;
+      }
+
+      label {
+        display: block;
+        margin: 20px 0 8px;
+        font-size: 0.94rem;
+        font-weight: 650;
+      }
+
+      input {
+        width: 100%;
+        min-height: 48px;
+        padding: 11px 12px;
+        border: 1px solid #b9c8d4;
+        border-radius: 8px;
+        background: #fff;
+        color: inherit;
+        font: inherit;
+      }
+
+      input:focus {
+        border-color: #167d78;
+        outline: 3px solid rgb(22 125 120 / 15%);
+      }
+
+      .hint {
+        margin: 7px 0 0;
+        color: #657686;
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+
+      button {
+        width: 100%;
+        min-height: 50px;
+        margin-top: 26px;
+        border: 0;
+        border-radius: 8px;
+        background: #167d78;
+        color: #fff;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+      }
+
+      button:hover {
+        background: #116963;
+      }
+
+      button:focus-visible {
+        outline: 3px solid #92d7d2;
+        outline-offset: 3px;
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.7;
+      }
+
+      #estado {
+        min-height: 24px;
+        margin: 16px 0 0;
+        color: #a22b2b;
+        line-height: 1.5;
+      }
+
+      #estado:empty {
+        display: none;
+      }
+
+      @media (max-width: 480px) {
+        main {
+          padding: 28px 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Inventario · Reportes</p>
+      <h1>Flujo de inventario</h1>
+      <p class="intro">
+        Carga el Excel "Flujo de inventario" previamente modificado y genera el reporte de entradas y
+        salidas para la marca seleccionada.
+      </p>
+
+      <form id="formulario">
+        <label for="archivo">Archivo inicial de Excel</label>
+        <input
+          id="archivo"
+          name="archivo"
+          type="file"
+          accept=".xlsx,.xlsm"
+          required
+        >
+        <p class="hint">Formatos admitidos: .xlsx y .xlsm.</p>
+
+        <label for="marca">Marca o referencia del ítem</label>
+        <input
+          id="marca"
+          name="marca"
+          type="text"
+          placeholder="Ejemplo: LECAT"
+          autocomplete="off"
+          required
+        >
+        <p class="hint">
+          Se compara con la columna “Referencia del Item” del archivo.
+        </p>
+
+        <button id="enviar" type="submit">Generar y descargar reporte</button>
+        <p id="estado" role="status" aria-live="polite"></p>
+      </form>
+    </main>
+
+    <script>
+      const formulario = document.querySelector("#formulario");
+      const boton = document.querySelector("#enviar");
+      const estado = document.querySelector("#estado");
+
+      formulario.addEventListener("submit", async (evento) => {
+        evento.preventDefault();
+        estado.textContent = "";
+        boton.disabled = true;
+        boton.textContent = "Generando reporte...";
+
+        try {
+          const respuesta = await fetch("/generar", {
+            method: "POST",
+            body: new FormData(formulario),
+          });
+
+          if (!respuesta.ok) {
+            const error = await respuesta.json();
+            throw new Error(error.detail || "No fue posible generar el reporte.");
+          }
+
+          const archivo = await respuesta.blob();
+          const url = URL.createObjectURL(archivo);
+          const enlace = document.createElement("a");
+          const marca = String(new FormData(formulario).get("marca") || "").trim();
+          const marcaArchivo = marca
+            .replace(/[<>:"\/\\|?*\u0000-\u001f]/g, "_")
+            .replace(/[ .]+$/, "") || "Marca";
+          enlace.href = url;
+          enlace.download = `Flujo de Inventario ${marcaArchivo}.xlsx`;
+          document.body.append(enlace);
+          enlace.click();
+          enlace.remove();
+          URL.revokeObjectURL(url);
+          estado.style.color = "#167d48";
+          estado.textContent = "Reporte generado y descargado correctamente.";
+        } catch (error) {
+          estado.style.color = "#a22b2b";
+          estado.textContent =
+            error instanceof Error
+              ? error.message
+              : "Ocurrió un error al generar el reporte.";
+        } finally {
+          boton.disabled = false;
+          boton.textContent = "Generar y descargar reporte";
+        }
+      });
+    </script>
+  </body>
+</html>
